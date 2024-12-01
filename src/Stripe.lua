@@ -64,6 +64,11 @@ function StripeRequest (endPoint)
   connection = Connection()
   content = connection:request("GET", url .. apiUrlVersion .. "/" .. endPoint, nil, nil, headers)
   json = JSON(content)
+  
+  local response = json:dictionary()
+  if response["error"] then
+    error("Stripe API error: " .. response["error"]["message"])
+  end
 
   return json
 end
@@ -71,13 +76,16 @@ end
 function GetBalances ()
   local balances = {}
 
-  stripeBalances = StripeRequest("balance"):dictionary()["available"]
+  local response = StripeRequest("balance"):dictionary()
+  if response["available"] then
+    stripeBalances = response["available"]
 
-  for key, value in pairs(stripeBalances) do
-    local balance = {}
-    balance[1] = (value["amount"] / 100)
-    balance[2] = string.upper(value["currency"])
-    balances[#balances+1] = balance
+    for key, value in pairs(stripeBalances) do
+      local balance = {}
+      balance[1] = (value["amount"] / 100)
+      balance[2] = string.upper(value["currency"])
+      balances[#balances+1] = balance
+    end
   end
 
   return balances
@@ -87,13 +95,12 @@ function GetTransactions (since)
   local transactions = {}
   local lastTransaction = nil
   local moreItemsAvailable
-  local requestString
-
+  local baseRequest = "balance_transactions?limit=100&created[gt]=" .. since .. "&expand[]=data.source"
+  
   repeat
-    if lastTransaction == nil then
-      requestString = "balance_transactions?limit=100&created[gt]=" .. since
-    else
-      requestString = "balance_transactions?limit=100&created[gt]=" .. since .. "&starting_after=" .. lastTransaction
+    local requestString = baseRequest
+    if lastTransaction then
+      requestString = requestString .. "&starting_after=" .. lastTransaction
     end
 
     stripeObject = StripeRequest(requestString):dictionary()
@@ -113,7 +120,6 @@ function GetTransactions (since)
         error("Unexpected transaction status: " .. tostring(value["status"]))
       end
 
-
       if value["description"] then
         purpose = purpose .. "\n" .. value["description"]
       end
@@ -122,7 +128,7 @@ function GetTransactions (since)
           bookingDate = value["created"],
           valueDate = value["available_on"],
           purpose = purpose,
-          endToEndReference = value["source"],
+          endToEndReference = value["id"],
           amount = (value["amount"] / 100),
           currency = string.upper(value["currency"]),
           booked = booked
@@ -133,6 +139,7 @@ function GetTransactions (since)
             bookingDate = value["created"],
             valueDate = value["available_on"],
             purpose = feeValue["type"] .. "\n" .. feeValue["description"],
+            endToEndReference = value["id"],
             amount = (feeValue["amount"] / 100) * -1,
             currency = string.upper(feeValue["currency"]),
             booked = booked
@@ -142,7 +149,7 @@ function GetTransactions (since)
           bookingDate = value["created"],
           valueDate = value["available_on"],
           purpose = purpose,
-          endToEndReference = value["source"],
+          endToEndReference = value["id"],
           amount = (value["amount"] / 100),
           currency = string.upper(value["currency"]),
           booked = booked
