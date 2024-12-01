@@ -108,7 +108,6 @@ function GetTransactions (since)
 
     for key, value in pairs(stripeObject["data"]) do
       lastTransaction = value["id"]
-      purpose = value["type"]
 
       -- Determine booked status based on transaction status
       local booked
@@ -120,14 +119,27 @@ function GetTransactions (since)
         error("Unexpected transaction status: " .. tostring(value["status"]))
       end
 
-      if value["description"] then
-        purpose = purpose .. "\n" .. value["description"]
+      local name = value["type"]
+
+      -- Override the name if it's a charge transaction
+      if value["type"] == "charge" and value["source"] and value["source"]["object"] == "charge" then
+        if value["source"]["billing_details"] and value["source"]["billing_details"]["name"] then
+          name = value["source"]["billing_details"]["name"]
+        end
       end
+
+      -- Get the purpose from the description
+      local purpose = ""
+      if value["description"] then
+        purpose = value["description"]
+      end
+
       -- Add the main transaction first
       transactions[#transactions+1] = {
         bookingDate = value["created"],
         valueDate = value["available_on"],
         purpose = purpose,
+        name = name,
         endToEndReference = value["id"],
         amount = (value["amount"] / 100),
         currency = string.upper(value["currency"]),
@@ -140,7 +152,8 @@ function GetTransactions (since)
           transactions[#transactions+1] = {
             bookingDate = value["created"],
             valueDate = value["available_on"],
-            purpose = feeValue["type"] .. "\n" .. feeValue["description"],
+            name = feeValue["description"],
+            purpose = "",
             endToEndReference = value["id"],
             amount = (feeValue["amount"] / 100) * -1,
             currency = string.upper(feeValue["currency"]),
