@@ -134,11 +134,33 @@ function GetTransactions (since)
         purpose = value["description"]
       end
 
+      -- Process metadata information for charge transactions
+      local metadataString = ""
+      if value["type"] == "charge" and value["source"] and value["source"]["object"] == "charge" and value["source"]["metadata"] then
+        local metadata = {}
+        for metaKey, metaValue in pairs(value["source"]["metadata"]) do
+          -- Capitalize first character of key
+          local capitalizedKey = metaKey:sub(1,1):upper() .. metaKey:sub(2)
+          table.insert(metadata, capitalizedKey .. ": " .. metaValue)
+        end
+        if #metadata > 0 then
+          metadataString = table.concat(metadata, ", ")
+        end
+      end
+
       -- Add the main transaction first
+      local mainPurpose = purpose
+      if metadataString ~= "" then
+        if mainPurpose ~= "" then
+          mainPurpose = mainPurpose .. "\n"
+        end
+        mainPurpose = mainPurpose .. metadataString
+      end
+
       transactions[#transactions+1] = {
         bookingDate = value["created"],
         valueDate = value["available_on"],
-        purpose = purpose,
+        purpose = mainPurpose,
         name = name,
         endToEndReference = value["id"],
         amount = (value["amount"] / 100),
@@ -153,7 +175,7 @@ function GetTransactions (since)
             bookingDate = value["created"],
             valueDate = value["available_on"],
             name = feeValue["description"],
-            purpose = "",
+            purpose = metadataString,  -- Only use metadata string for fees
             endToEndReference = value["id"],
             amount = (feeValue["amount"] / 100) * -1,
             currency = string.upper(feeValue["currency"]),
