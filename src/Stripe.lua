@@ -123,17 +123,19 @@ function GetTransactions (since)
       if value["description"] then
         purpose = purpose .. "\n" .. value["description"]
       end
-      if value["fee"] == 0 then
-        transactions[#transactions+1] = {
-          bookingDate = value["created"],
-          valueDate = value["available_on"],
-          purpose = purpose,
-          endToEndReference = value["id"],
-          amount = (value["amount"] / 100),
-          currency = string.upper(value["currency"]),
-          booked = booked
-        }
-      else
+      -- Add the main transaction first
+      transactions[#transactions+1] = {
+        bookingDate = value["created"],
+        valueDate = value["available_on"],
+        purpose = purpose,
+        endToEndReference = value["id"],
+        amount = (value["amount"] / 100),
+        currency = string.upper(value["currency"]),
+        booked = booked
+      }
+      
+      -- Add fee transactions if present
+      if value["fee"] ~= 0 then
         for feeKey, feeValue in pairs(value["fee_details"]) do
           transactions[#transactions+1] = {
             bookingDate = value["created"],
@@ -145,15 +147,6 @@ function GetTransactions (since)
             booked = booked
           }
         end
-        transactions[#transactions+1] = {
-          bookingDate = value["created"],
-          valueDate = value["available_on"],
-          purpose = purpose,
-          endToEndReference = value["id"],
-          amount = (value["amount"] / 100),
-          currency = string.upper(value["currency"]),
-          booked = booked
-        }
       end
     end
 
