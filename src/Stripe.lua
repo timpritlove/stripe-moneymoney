@@ -103,6 +103,17 @@ function GetTransactions (since)
       lastTransaction = value["id"]
       purpose = value["type"]
 
+      -- Determine booked status based on transaction status
+      local booked
+      if value["status"] == "available" then
+        booked = true
+      elseif value["status"] == "pending" then
+        booked = false
+      else
+        error("Unexpected transaction status: " .. tostring(value["status"]))
+      end
+
+
       if value["description"] then
         purpose = purpose .. "\n" .. value["description"]
       end
@@ -113,7 +124,8 @@ function GetTransactions (since)
           purpose = purpose,
           endToEndReference = value["source"],
           amount = (value["amount"] / 100),
-          currency = string.upper(value["currency"])
+          currency = string.upper(value["currency"]),
+          booked = booked
         }
       else
         for feeKey, feeValue in pairs(value["fee_details"]) do
@@ -122,7 +134,8 @@ function GetTransactions (since)
             valueDate = value["available_on"],
             purpose = feeValue["type"] .. "\n" .. feeValue["description"],
             amount = (feeValue["amount"] / 100) * -1,
-            currency = string.upper(feeValue["currency"])
+            currency = string.upper(feeValue["currency"]),
+            booked = booked
           }
         end
         transactions[#transactions+1] = {
@@ -131,7 +144,8 @@ function GetTransactions (since)
           purpose = purpose,
           endToEndReference = value["source"],
           amount = (value["amount"] / 100),
-          currency = string.upper(value["currency"])
+          currency = string.upper(value["currency"]),
+          booked = booked
         }
       end
     end
