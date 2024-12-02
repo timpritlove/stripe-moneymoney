@@ -75,19 +75,34 @@ end
 
 function GetBalances ()
   local balances = {}
+  local currencyTotals = {}  -- Will store the sums for each currency
 
   local response = StripeRequest("balance"):dictionary()
-  if response["available"] then
-    stripeBalances = response["available"]
-
-    for key, value in pairs(stripeBalances) do
-      local balance = {}
-      balance[1] = (value["amount"] / 100)
-      balance[2] = string.upper(value["currency"])
-      balances[#balances+1] = balance
+  
+  -- Helper function to process balances for a given type (available or pending)
+  local function processBalances(balanceType)
+    if response[balanceType] then
+      for _, value in pairs(response[balanceType]) do
+        local currency = string.upper(value["currency"])
+        -- Initialize if this currency hasn't been seen yet
+        currencyTotals[currency] = currencyTotals[currency] or 0
+        -- Add the amount (converting from cents to whole units)
+        currencyTotals[currency] = currencyTotals[currency] + (value["amount"] / 100)
+      end
     end
   end
 
+  -- Process both available and pending balances
+  processBalances("available")
+  processBalances("pending")
+
+  -- Convert the currency totals into the required format
+  for currency, amount in pairs(currencyTotals) do
+    local balance = {}
+    balance[1] = amount
+    balance[2] = currency
+    balances[#balances+1] = balance
+  end
   return balances
 end
 
