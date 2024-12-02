@@ -119,10 +119,10 @@ function GetTransactions (since)
         error("Unexpected transaction status: " .. tostring(value["status"]))
       end
 
-      local name = value["type"]
+      local name = value["reporting_category"]
 
       -- Override the name if it's a charge transaction
-      if value["type"] == "charge" and value["source"] and value["source"]["object"] == "charge" then
+      if value["reporting_category"] == "charge" and value["source"] and value["source"]["object"] == "charge" then
         if value["source"]["billing_details"] and value["source"]["billing_details"]["name"] then
           name = value["source"]["billing_details"]["name"]
         end
@@ -136,7 +136,7 @@ function GetTransactions (since)
 
       -- Process metadata information for charge transactions
       local metadataString = ""
-      if value["type"] == "charge" and value["source"] and value["source"]["object"] == "charge" and value["source"]["metadata"] then
+      if value["reporting_category"] == "charge" and value["source"] and value["source"]["object"] == "charge" and value["source"]["metadata"] then
         local metadata = {}
         for metaKey, metaValue in pairs(value["source"]["metadata"]) do
           -- Capitalize first character of key
