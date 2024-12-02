@@ -109,6 +109,48 @@ function GetTransactions (since)
     for key, value in pairs(stripeObject["data"]) do
       lastTransaction = value["id"]
 
+      -- Use reporting_category as the name
+      local name = value["reporting_category"]
+
+      -- Build the purpose
+      local purposeParts = {}
+
+      -- Add description if available
+      if value["description"] then
+        table.insert(purposeParts, value["description"])
+      end
+
+      -- Add billing details for charge transactions
+      if value["reporting_category"] == "charge" and value["source"] and value["source"]["object"] == "charge" then
+        if value["source"]["billing_details"] then
+          local billingDetails = value["source"]["billing_details"]
+          local billingInfo = {}
+          if billingDetails["name"] then
+            table.insert(billingInfo, billingDetails["name"])
+          end
+          if billingDetails["email"] then
+            table.insert(billingInfo, billingDetails["email"])
+          end
+          if #billingInfo > 0 then
+            table.insert(purposeParts, table.concat(billingInfo, ", "))
+          end
+        end
+
+        -- Add metadata if available
+        if value["source"]["metadata"] then
+          local metadata = {}
+          for metaKey, metaValue in pairs(value["source"]["metadata"]) do
+            local capitalizedKey = metaKey:sub(1,1):upper() .. metaKey:sub(2)
+            table.insert(metadata, capitalizedKey .. ": " .. metaValue)
+          end
+          if #metadata > 0 then
+            table.insert(purposeParts, table.concat(metadata, ", "))
+          end
+        end
+      end
+
+      local purpose = table.concat(purposeParts, "\n")
+
       -- Determine booked status based on transaction status
       local booked
       if value["status"] == "available" then
@@ -119,48 +161,11 @@ function GetTransactions (since)
         error("Unexpected transaction status: " .. tostring(value["status"]))
       end
 
-      local name = value["reporting_category"]
-
-      -- Override the name if it's a charge transaction
-      if value["reporting_category"] == "charge" and value["source"] and value["source"]["object"] == "charge" then
-        if value["source"]["billing_details"] and value["source"]["billing_details"]["name"] then
-          name = value["source"]["billing_details"]["name"]
-        end
-      end
-
-      -- Get the purpose from the description
-      local purpose = ""
-      if value["description"] then
-        purpose = value["description"]
-      end
-
-      -- Process metadata information for charge transactions
-      local metadataString = ""
-      if value["reporting_category"] == "charge" and value["source"] and value["source"]["object"] == "charge" and value["source"]["metadata"] then
-        local metadata = {}
-        for metaKey, metaValue in pairs(value["source"]["metadata"]) do
-          -- Capitalize first character of key
-          local capitalizedKey = metaKey:sub(1,1):upper() .. metaKey:sub(2)
-          table.insert(metadata, capitalizedKey .. ": " .. metaValue)
-        end
-        if #metadata > 0 then
-          metadataString = table.concat(metadata, ", ")
-        end
-      end
-
-      -- Add the main transaction first
-      local mainPurpose = purpose
-      if metadataString ~= "" then
-        if mainPurpose ~= "" then
-          mainPurpose = mainPurpose .. "\n"
-        end
-        mainPurpose = mainPurpose .. metadataString
-      end
-
+      -- Add the main transaction
       transactions[#transactions+1] = {
         bookingDate = value["created"],
         valueDate = value["available_on"],
-        purpose = mainPurpose,
+        purpose = purpose,
         name = name,
         endToEndReference = value["id"],
         amount = (value["amount"] / 100),
@@ -175,7 +180,7 @@ function GetTransactions (since)
             bookingDate = value["created"],
             valueDate = value["available_on"],
             name = feeValue["description"],
-            purpose = metadataString,  -- Only use metadata string for fees
+            purpose = purpose,  -- Use the same purpose for fees
             endToEndReference = value["id"],
             amount = (feeValue["amount"] / 100) * -1,
             currency = string.upper(feeValue["currency"]),
